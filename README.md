@@ -1,7 +1,7 @@
 # Emotion_classification_performance_test
 For comparing Emotion classification performance of different models on DailyDialog Dataset
 
-PRG-MoE[https://github.com/jdjin3000/PRG-MoE] referenced
+[PRG-MoE](https://github.com/jdjin3000/PRG-MoE) referenced
 
 # Dependencies
 python 3.10.9<br>
