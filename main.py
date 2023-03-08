@@ -5,7 +5,8 @@ import random
 import csv
 from typing import List
 
-from module.tester import TestEnv
+from transformers import AutoModelForSequenceClassification, Trainer
+from module.dataset import get_dataset
 
 import numpy as np
 import torch
@@ -56,11 +57,20 @@ def main():
     
     test_data_list = ['data_fold/data_0/dailydialog_test.json']
     
-    for te in test_data_list:
-        args.test_data = te
+    model_name = "j-hartmann/emotion-english-distilroberta-base"
+    model = AutoModelForSequenceClassification.from_pretrained(model_name)  
+    
+    os.environ["CUDA_VISIBLE_DEVICES"]= "1"
+    os.environ["CUDA_LAUNCH_BLOCKING"]= "1"
+    allocated_gpu = "cuda:1"
+    
+    for testfile in test_data_list:
+        args.test_data = testfile
         
-        tester = TestEnv(**vars(args))
-        tester.run(**vars(args))
+        trainer = Trainer(model=model)
+        pred_dataset = get_dataset(model_name=model_name, test_file=testfile)
+        predictions = trainer.predict(pred_dataset)
+        breakpoint()
         
         del tester
 
