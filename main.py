@@ -70,9 +70,9 @@ def main():
         trainer = Trainer(model=model)
         pred_dataset = get_dataset(model_name=model_name, test_file=testfile)
         predictions = trainer.predict(pred_dataset)
-        breakpoint()
         
-        del tester
+        # 분류결과: predictions[0]
+        breakpoint()
 
 if __name__ == '__main__':
     main()
