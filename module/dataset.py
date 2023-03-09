@@ -18,18 +18,22 @@ def get_dataset(model_name, test_file):
         data = json.load(f)
     
     utterances = []
-    emotion_labels = []
-    
-    num_docs = 0
-    num_utts = 0
     
     for doc in data.values():
-        num_docs += 1
         for utt in doc[0]:
             utterances.append(utt['utterance'])
-            emotion_labels.append(utt['emotion'])
-            num_utts += 1
-    
+            
     tokenized_texts = tokenizer(utterances,truncation=True,padding=True)
     dataset = SimpleDataset(tokenized_texts)
     return dataset
+
+def get_labels(test_file):
+    with open(test_file, 'r') as f:
+        data = json.load(f)
+    
+    emotion_labels = []
+    for doc in data.values():
+        for utt in doc[0]:
+            emotion_labels.append(utt['emotion'])
+    
+    return emotion_labels
