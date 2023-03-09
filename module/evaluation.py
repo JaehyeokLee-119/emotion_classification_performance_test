@@ -24,6 +24,9 @@ def threshold_prediction(pred_y, true_y):
 
 
 def metrics_report(pred_y, true_y, label, get_dict=False, multilabel=False):
+    pred_y = torch.tensor(pred_y)
+    true_y = torch.tensor(true_y)
+    
     if multilabel:
         pred_y, true_y = threshold_prediction(pred_y, true_y)
         available_label = sorted(list(set((pred_y == True).nonzero()[:, -1].tolist() + (true_y == True).nonzero()[:, -1].tolist())))
@@ -56,7 +59,8 @@ def metrics_report_for_emo_binary(pred_y, true_y, get_dict=False, multilabel=Fal
         return classification_report(true_y, pred_y, target_names=class_name, zero_division=0, digits=4)
 
 def log_metrics(logger, emo_pred_y_list, emo_true_y_list, option='train'):
-    label_ = np.array(['angry', 'disgust', 'fear', 'happy', 'sad', 'surprise', 'neutral'])
+    # label_ = np.array(['angry', 'disgust', 'fear', 'happy', 'sad', 'surprise', 'neutral'])
+    label_ = np.array(['angry', 'disgust', 'fear', 'happy', 'sad', 'neutral', 'surprise'])
     logger.info('\n' + metrics_report(torch.cat(emo_pred_y_list), torch.cat(emo_true_y_list), label=label_))
     report_dict = metrics_report(torch.cat(emo_pred_y_list), torch.cat(emo_true_y_list), label=label_, get_dict=True)
     acc_emo, p_emo, r_emo, f1_emo = report_dict['accuracy'], report_dict['weighted avg']['precision'], report_dict['weighted avg']['recall'], report_dict['weighted avg']['f1-score']
