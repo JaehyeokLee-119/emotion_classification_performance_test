@@ -24,9 +24,6 @@ def threshold_prediction(pred_y, true_y):
 
 
 def metrics_report(pred_y, true_y, label, get_dict=False, multilabel=False):
-    pred_y = torch.tensor(pred_y)
-    true_y = torch.tensor(true_y)
-    
     if multilabel:
         pred_y, true_y = threshold_prediction(pred_y, true_y)
         available_label = sorted(list(set((pred_y == True).nonzero()[:, -1].tolist() + (true_y == True).nonzero()[:, -1].tolist())))
