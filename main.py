@@ -7,6 +7,7 @@ from typing import List
 
 from transformers import AutoModelForSequenceClassification, Trainer
 from module.dataset import get_dataset
+from module.tester import Tester
 
 import numpy as np
 import torch
@@ -67,9 +68,8 @@ def main():
     for testfile in test_data_list:
         args.test_data = testfile
         
-        trainer = Trainer(model=model)
-        pred_dataset = get_dataset(model_name=model_name, test_file=testfile)
-        predictions = trainer.predict(pred_dataset)
+        tester = Tester(model_name, testfile)
+        tester.run()
         
         # 분류결과: predictions[0]
         breakpoint()
