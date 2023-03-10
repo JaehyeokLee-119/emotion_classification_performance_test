@@ -3,3 +3,6 @@ test.py
 
 # Temporary Directory
 __?*
+
+# logged files
+log
