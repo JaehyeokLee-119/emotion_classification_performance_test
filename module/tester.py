@@ -29,11 +29,10 @@ class Tester:
         self.model = AutoModelForSequenceClassification.from_pretrained(self.model_name)  
     
     def report_jhartmann(self, predictions, testfile):
-        labels_text = get_labels(testfile)
-        
-        # j-hartmann/emotion-english-distilroberta-base labels
-        emotion_label = [0, 1, 2, 3, 5, 6, 4] 
+        # j-hartmann labels
         # Dataset 기준 label_ = np.array(['angry', 'disgust', 'fear', 'happy', 'sad', 'surprise', 'neutral'])
+        emotion_label = [0, 1, 2, 3, 5, 6, 4] # ['angry', 'disgust', 'fear', 'happy', 'neutral', 'sad', 'surprise']
+        
         label_ = np.array(['angry', 'disgust', 'fear', 'happy', 'neutral', 'sad', 'surprise'])
         emotion_label_policy = {'angry': emotion_label[0], 'anger': emotion_label[0],
             'disgust': emotion_label[1],
@@ -44,16 +43,15 @@ class Tester:
             'neutral': emotion_label[6]}
         
         # Process labels to number tensor
+        labels_text = get_labels(testfile)
         labels_number = [emotion_label_policy[i] for i in labels_text]      # 'text labels from data' to 'number labels'
         labels_tensor = torch.tensor(labels_number)
-        
-        predictions_to_index = torch.argmax(predictions, dim=1)             # 7d prediction to 1d scalar label
-        predictions_to_text = [label_[i] for i in predictions_to_index.tolist()]
         
         report = metrics_report(predictions, labels_tensor, label_)
         report += '\n' + metrics_report_for_emo_binary(predictions, labels_tensor, neutral_num=4)
         return report
     
+        ''' 
         # Codes for verification
         with open(self.testfile, 'r') as f:
             data = json.load(f)
@@ -63,10 +61,14 @@ class Tester:
             for utt in doc[0]:
                 utterances.append(utt['utterance'])
                 
+        predictions_to_index = torch.argmax(predictions, dim=1)             # 7d prediction to 1d scalar label
+        predictions_to_text = [label_[i] for i in predictions_to_index.tolist()]
+        
         verification = []
         for (a,b,c) in zip(utterances, predictions_to_text, labels_text):
             verification.append({'utterance': a, 'pred': b, 'true': c})
-    
+        '''
+        
     def save_report(self, report, dir_name, data_label):
         if not os.path.exists(dir_name):
             os.makedirs(dir_name)
@@ -84,10 +86,10 @@ class Tester:
         trainer = Trainer(model=self.model)
         
         for tf, dl in zip(self.testfiles, self.data_labels):
+            
             # Dataset
-            print('testfile: ', tf, 'data_label:', dl)
-            pred_dataset = get_dataset(model_name=self.model_name, test_file=tf)
-            predictions = torch.tensor(trainer.predict(pred_dataset)[0])
+            prediction_dataset = get_dataset(model_name=self.model_name, test_file=tf)
+            predictions = torch.tensor(trainer.predict(prediction_dataset)[0])
         
             # Calculate report 
             if (self.model_name == "j-hartmann/emotion-english-distilroberta-base"):
@@ -98,5 +100,5 @@ class Tester:
                 report = 'None'
         
             # Print report
-            self.save_report(report, 'log', dl)
+            self.save_report(report, dir_name='log', data_label=dl)
         
