@@ -18,18 +18,18 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trai
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 class Tester:
-    def __init__(self, model_name, test_file, model_label, data_label):
+    def __init__(self, model_name, model_label, test_files, data_labels):
         self.model_name = model_name
         self.set_model()
-        self.testfile = test_file
+        self.testfiles = test_files
         self.model_label = model_label
-        self.data_label = data_label
+        self.data_labels = data_labels
         
     def set_model(self):
         self.model = AutoModelForSequenceClassification.from_pretrained(self.model_name)  
     
-    def report_jhartmann(self, predictions):
-        labels_text = get_labels(self.testfile)
+    def report_jhartmann(self, predictions, testfile):
+        labels_text = get_labels(testfile)
         
         # j-hartmann/emotion-english-distilroberta-base labels
         emotion_label = [0, 1, 2, 3, 5, 6, 4] 
@@ -67,28 +67,36 @@ class Tester:
         for (a,b,c) in zip(utterances, predictions_to_text, labels_text):
             verification.append({'utterance': a, 'pred': b, 'true': c})
     
-    def save_report(self, report, dir_name):
+    def save_report(self, report, dir_name, data_label):
         if not os.path.exists(dir_name):
             os.makedirs(dir_name)
         
-        file_name = self.model_label+'-'+self.data_label+'.txt'
+        inner_dir_name = dir_name+'/'+self.model_label
+        if not os.path.exists(inner_dir_name):
+            os.makedirs(inner_dir_name)
         
-        with open(os.path.join(dir_name, file_name), 'w') as f:
+        file_name = self.model_label+'-'+data_label+'.txt'
+        
+        with open(os.path.join(inner_dir_name, file_name), 'w') as f:
             f.write(report)
     
     def run(self):
         trainer = Trainer(model=self.model)
         
-        # Dataset
-        pred_dataset = get_dataset(model_name=self.model_name, test_file=self.testfile)
-        predictions = torch.tensor(trainer.predict(pred_dataset)[0])
+        for tf, dl in zip(self.testfiles, self.data_labels):
+            # Dataset
+            print('testfile: ', tf, 'data_label:', dl)
+            pred_dataset = get_dataset(model_name=self.model_name, test_file=tf)
+            predictions = torch.tensor(trainer.predict(pred_dataset)[0])
         
-        # Calculate report 
-        if (self.model_name == "j-hartmann/emotion-english-distilroberta-base"):
-            report = self.report_jhartmann(predictions)
-        else:
-            report = 'None'
+            # Calculate report 
+            if (self.model_name == "j-hartmann/emotion-english-distilroberta-base"):
+                report = self.report_jhartmann(predictions, tf)
+            elif (self.model_name == "j-hartmann/emotion-english-roberta-large"):
+                report = self.report_jhartmann(predictions, tf)
+            else:
+                report = 'None'
         
-        # Print report
-        self.save_report(report, 'log')
-        print(report)
+            # Print report
+            self.save_report(report, 'log', dl)
+        
