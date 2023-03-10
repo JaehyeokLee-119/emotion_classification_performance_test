@@ -14,6 +14,9 @@ cuda 11.6.1<br>
 transformers 4.26.1<br>
 scikit-learn 1.2.0<br>
 
+# Dataset
+The dataset used is [RECCON dataset](https://github.com/declare-lab/RECCON).
+
 ### Commit Conventions (from https://treasurebear.tistory.com/70)
 🎨	`:art:`	코드의 구조/형태 개선	Improve structure / format of the code.<br>
 ⚡️	`:zap:`	성능 개선	Improve performance.<br>
