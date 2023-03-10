@@ -5,8 +5,6 @@ import random
 import csv
 from typing import List
 
-from transformers import AutoModelForSequenceClassification, Trainer
-from module.dataset import get_dataset
 from module.tester import Tester
 
 import numpy as np
@@ -56,18 +54,21 @@ def main():
     
     os.environ["CUDA_VISIBLE_DEVICES"] = ",".join([str(_) for _ in args.gpus])
     
+    # model_name = ["j-hartmann/emotion-english-distilroberta-base", "j-hartmann/emotion-english-roberta-large"]
+    # model_label = ['j-hartmann distill roberta base', 'j-hartmann roberta large']
     model_name = ["j-hartmann/emotion-english-distilroberta-base"]
-    test_data = ['data_fold/data_0/dailydialog_test.json']
-    data_label = ['-original_dd']
     model_label = ['j-hartmann distill roberta base']
     
-    os.environ["CUDA_VISIBLE_DEVICES"]= "1"
-    os.environ["CUDA_LAUNCH_BLOCKING"]= "1"
-    allocated_gpu = "cuda:1"
+    test_data = ['data_fold/data_0/dailydialog_test.json', * 
+                 [f'data_fold/data_{fold_}/data_{fold_}_test.json' for fold_ in range(1, 5)]]
+    data_label = ['-original_dd', *[f'-data_{fold_}_DailyDialog' for fold_ in range(1, 5)]]
     
-    for mn, tf, ml, dl in zip(model_name, test_data, model_label, data_label):
-        tester = Tester(mn, tf, ml, dl)
-        tester.run()
+    for mn, ml in zip(model_name, model_label):
+        for tf, dl in zip(test_data, data_label):
+            tester = Tester(mn, tf, ml, dl)
+            tester.run()
+
+            del tester
 
 if __name__ == '__main__':
     main()
