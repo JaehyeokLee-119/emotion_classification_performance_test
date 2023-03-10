@@ -56,23 +56,18 @@ def main():
     
     os.environ["CUDA_VISIBLE_DEVICES"] = ",".join([str(_) for _ in args.gpus])
     
-    test_data_list = ['data_fold/data_0/dailydialog_test.json']
-    
-    model_name = "j-hartmann/emotion-english-distilroberta-base"
-    model = AutoModelForSequenceClassification.from_pretrained(model_name)  
+    model_name = ["j-hartmann/emotion-english-distilroberta-base"]
+    test_data = ['data_fold/data_0/dailydialog_test.json']
+    data_label = ['-original_dd']
+    model_label = ['j-hartmann distill roberta base']
     
     os.environ["CUDA_VISIBLE_DEVICES"]= "1"
     os.environ["CUDA_LAUNCH_BLOCKING"]= "1"
     allocated_gpu = "cuda:1"
     
-    for testfile in test_data_list:
-        args.test_data = testfile
-        
-        tester = Tester(model_name, testfile)
+    for mn, tf, ml, dl in zip(model_name, test_data, model_label, data_label):
+        tester = Tester(mn, tf, ml, dl)
         tester.run()
-        
-        # 분류결과: predictions[0]
-        breakpoint()
 
 if __name__ == '__main__':
     main()

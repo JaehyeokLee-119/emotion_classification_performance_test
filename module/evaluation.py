@@ -38,7 +38,7 @@ def metrics_report(pred_y, true_y, label, get_dict=False, multilabel=False):
         return classification_report(true_y, pred_y, target_names=class_name, zero_division=0, digits=4)
 
 
-def metrics_report_for_emo_binary(pred_y, true_y, get_dict=False, multilabel=False):
+def metrics_report_for_emo_binary(pred_y, true_y, neutral_num, get_dict=False, multilabel=False):
     if multilabel:
         pred_y, true_y = threshold_prediction(pred_y, true_y)
         available_label = sorted(list(set((pred_y == True).nonzero()[:, -1].tolist() + (true_y == True).nonzero()[:, -1].tolist())))
@@ -47,8 +47,8 @@ def metrics_report_for_emo_binary(pred_y, true_y, get_dict=False, multilabel=Fal
         available_label = sorted(list(set(true_y.tolist() + pred_y.tolist())))
 
     class_name = ['non-neutral', 'neutral']
-    pred_y = [1 if element == 6 else 0 for element in pred_y] # element 6 means neutral.
-    true_y = [1 if element == 6 else 0 for element in true_y]
+    pred_y = [1 if element == neutral_num else 0 for element in pred_y] # element 6 means neutral.
+    true_y = [1 if element == neutral_num else 0 for element in true_y]
 
     if get_dict:
         return classification_report(true_y, pred_y, target_names=class_name, zero_division=0, digits=4, output_dict=True)
