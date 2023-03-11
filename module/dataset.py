@@ -11,14 +11,13 @@ class SimpleDataset:
     def __getitem__(self, idx):
         return {k: v[idx] for k, v in self.tokenized_texts.items()}
 
-def get_dataset(model_name, test_file):
+def get_dataset(model_name, datafile):
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     
-    with open(test_file, 'r') as f:
+    with open(datafile, 'r') as f:
         data = json.load(f)
     
     utterances = []
-    
     for doc in data.values():
         for utt in doc[0]:
             utterances.append(utt['utterance'])
