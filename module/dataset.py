@@ -36,3 +36,20 @@ def get_labels(test_file):
             emotion_labels.append(utt['emotion'])
     
     return emotion_labels
+
+def get_bulk_texts_and_labels(test_file):
+    '''
+    파일에서 각 utterance의 text와 emotion label 순서대로 두 list를 반환한다 (text 형태로)
+    ex): ['neutral', 'angry', 'neutral', ...]
+    '''
+    with open(test_file, 'r') as f:
+        data = json.load(f)
+    
+    texts = []
+    labels_text = []
+    for doc in data.values():
+        for utt in doc[0]:
+            texts.append(utt['utterance'])
+            labels_text.append(utt['emotion'])
+    
+    return (texts, labels_text)
