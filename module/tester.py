@@ -62,24 +62,6 @@ class Tester:
         report += '\n' + metrics_report_for_emo_binary(predictions, labels_tensor, neutral_num=4)
         return report
     
-        ''' 
-        # Codes for verification
-        with open(self.testfile, 'r') as f:
-            data = json.load(f)
-    
-        utterances = []
-        for doc in data.values():
-            for utt in doc[0]:
-                utterances.append(utt['utterance'])
-                
-        predictions_to_index = torch.argmax(predictions, dim=1)             # 7d prediction to 1d scalar label
-        predictions_to_text = [label_[i] for i in predictions_to_index.tolist()]
-        
-        verification = []
-        for (a,b,c) in zip(utterances, predictions_to_text, labels_text):
-            verification.append({'utterance': a, 'pred': b, 'true': c})
-        '''
-        
     def save_report(self, report, dir_name, data_label):
         if not os.path.exists(dir_name):
             os.makedirs(dir_name)

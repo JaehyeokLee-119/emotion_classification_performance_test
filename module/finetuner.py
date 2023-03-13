@@ -44,7 +44,10 @@ def get_dataset_from_file(filename):
     return dataset
 
 def test(original_model, model, testfile, log_label, start_time, epoch_num, type_label='test'):
+    batch_size = 5
+    
     label_ = np.array(['angry', 'disgust', 'fear', 'happy', 'sad', 'surprise', 'neutral'])
+    
     texts, labels_text = get_bulk_texts_and_labels(testfile) # 파일에서 utterance list와 emotion label list를 불러옴
     labels_tensor = torch.tensor([emotion_label_policy[i] for i in labels_text])      # Emotion text label을 각 감정에 해당하는 숫자 tensor로 바꾼다
     
@@ -53,9 +56,30 @@ def test(original_model, model, testfile, log_label, start_time, epoch_num, type
     input_ids = encoded_texts['input_ids'].to(device)
     attention_masks = encoded_texts['attention_mask'].to(device)
     
-    model.eval()
-    model_outputs = original_model(input_ids, attention_masks)[0]       # 원래 모델에 넣어 돌림
-    predictions = model(model_outputs)                                  # 학습된 linear layer에 넣어 돌림
+    dataset = get_dataset_from_file(testfile)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+    
+    with torch.no_grad():
+        predictions, labels_tensor = [list() for _ in range(2)]
+        loss_overall = 0.0 # logging에 쓸 loss 값 저장용
+        for inputs, masks, labels in tqdm(dataloader, desc=f"Test for {epoch_num+1}"):
+            optimizer.zero_grad()
+            
+            model_outputs = original_model(inputs, masks)[0]
+            outputs = model(model_outputs)
+            
+            criterion = FocalLoss(gamma=2)
+            loss = criterion(outputs, labels)
+            
+            loss_overall += loss.item() * inputs.size(0)
+            
+            for pred in outputs:
+                predictions.append(pred)
+            for label in labels:
+                labels_tensor.append(label)
+    
+    predictions = torch.stack(predictions).cpu()            # 펴서 tensor로 만들어줌
+    labels_tensor = torch.stack(labels_tensor).cpu()        # 펴서 tensor로 만들어줌
     
     report = metrics_report(predictions, labels_tensor, label_)
     report += '\n'+metrics_report_for_emo_binary(predictions, labels_tensor)+'\n'
@@ -134,6 +158,11 @@ if __name__ == '__main__':
         for epoch in range(num_epoch):
             loss_overall = 0.0 # logging에 쓸 loss 값 저장용
             loss_wandb = 0.0
+            '''
+            학습하면서 train 데이터에 대해 logging도 수행
+            '''
+            predictions, labels_tensor = [list() for _ in range(2)]
+        
             for inputs, masks, labels in tqdm(dataloader, desc=f"train | Epoch {epoch+1}"):
                 
                 optimizer.zero_grad()
@@ -147,6 +176,11 @@ if __name__ == '__main__':
                 loss.backward()
                 optimizer.step()
                 
+                for pred in outputs:
+                    predictions.append(pred)
+                for label in labels:
+                    labels_tensor.append(label)
+                
                 loss_overall += loss.item() * inputs.size(0)
                 if use_wandb:
                     loss_wandb += loss.item() * inputs.size(0)
@@ -154,12 +188,25 @@ if __name__ == '__main__':
                         wandb.log({'train_loss': loss_wandb / 100})
                         loss_wandb = 0.0
                     i+=1
-                
+                    
+            predictions = torch.stack(predictions).cpu()
+            labels_tensor = torch.stack(labels_tensor).cpu()
+             
             epoch_loss = loss_overall / len(dataset)
             print('Epoch [{}/{}], Loss: {:.4f}'.format(epoch+1, num_epoch, epoch_loss))
             
-            test(original_model, model, train_filename, data_label, start_time, epoch+1, type_label='train')
-            test(original_model, model, test_filename, data_label, start_time, epoch+1, type_label='test')
+            label_ = np.array(['angry', 'disgust', 'fear', 'happy', 'sad', 'surprise', 'neutral'])
+            report = metrics_report(predictions, labels_tensor, label_)
+            report += '\n'+metrics_report_for_emo_binary(predictions, labels_tensor)+'\n'
+            # report를 파일에 저장
+            with open(f'log/train_{data_label}-{str(start_time)}.txt', 'a') as f:
+                f.write(f'Epoch: {epoch+1} | Test Report About: {data_label}\n')
+                f.write(report)
+            print(report)
+            
+            test(original_model, model, test_filename, data_label, start_time, epoch, type_label='test')
+            
+            
         # Finish the WandB run
         if use_wandb:
             wandb.finish()
