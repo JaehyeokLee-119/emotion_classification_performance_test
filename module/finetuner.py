@@ -9,7 +9,7 @@ from tqdm import tqdm
 import wandb
 import os
 import numpy as np
-from evaluation import argmax_prediction, metrics_report, metrics_report_for_emo_binary, FocalLoss
+from evaluation import metrics_report, metrics_report_for_emo_binary, FocalLoss
 from dataset import get_bulk_texts_and_labels
 import datetime
 
@@ -91,7 +91,33 @@ def test(original_model, model, testfile, log_label, start_time, epoch_num, type
         f.write(report)
 
 def set_model_with_added_layer(model_name, original_topology=7, num_classes=7):
+    '''
+    Pre-trained Classificaiton 모델 (LM + classification layer) 위에다 또 linear layer를 얹어서
+    추가된 linear layer에 분류를 학습
+    이 함수는 추가 linear layer(added_model)를 리턴한다
+    '''
     model = AutoModelForSequenceClassification.from_pretrained(model_name)
+    
+    # Freeze the pre-trained model's parameters
+    for param in model.parameters():
+        param.requires_grad = False
+        
+    model.classifier = nn.Sequential(
+        nn.Linear(in_features=original_topology, out_features=num_classes),
+        # nn.ReLU(),
+        # nn.Dropout(p=0.1),
+        # nn.Linear(in_features=num_classes, out_features=num_classes)
+    )
+    added_model = model.classifier
+    return added_model
+
+
+def set_model_with_replaced_layer(model_name, num_classes=7):
+    ''' 
+    Pre-trained Classification 모델에서 LM만 가져와서 분류 역할은 새로운 linear layer만 맡게 된다
+    그러므로 set_model_with_added_layer에 비해 분류 layer가 하나 적다
+    '''
+    model = AutoModel.from_pretrained(model_name)
     
     # Freeze the pre-trained model's parameters
     for param in model.parameters():
@@ -105,6 +131,7 @@ def set_model_with_added_layer(model_name, original_topology=7, num_classes=7):
     )
     added_model = model.classifier
     return added_model
+
 
 if __name__ == '__main__':
     # setting 
@@ -148,10 +175,10 @@ if __name__ == '__main__':
         model = set_model_with_added_layer(model_name, original_topology=original_topology, num_classes=7)
         model = model.cuda()
         
-        optimizer = optim.Adam(model.parameters(), lr=1e-5)
+        optimizer = optim.Adam(model.parameters(), lr=5e-5)
         dataset = get_dataset_from_file(train_filename)
         dataloader = DataLoader(dataset, batch_size=5, shuffle=False)
-    
+        
         i = 0
         start_time = datetime.datetime.now()
         
@@ -166,7 +193,6 @@ if __name__ == '__main__':
             for inputs, masks, labels in tqdm(dataloader, desc=f"train | Epoch {epoch+1}"):
                 
                 optimizer.zero_grad()
-                
                 model_outputs = original_model(inputs, masks)[0]
                 outputs = model(model_outputs)
                 
@@ -205,7 +231,6 @@ if __name__ == '__main__':
             print(report)
             
             test(original_model, model, test_filename, data_label, start_time, epoch, type_label='test')
-            
             
         # Finish the WandB run
         if use_wandb:
