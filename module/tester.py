@@ -18,6 +18,17 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trai
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 class Tester:
+    '''
+    Tester는 감정 분류 체계가 DailyDialog와 같은 모델을 테스트할 때 사용
+    - init(): 모델 이름, 테스트 파일들, 모델 라벨, 데이터 라벨을 받고, set_model()을 실행한다
+        - set_model(): self.model_name에 해당하는 모델을 불러온다
+    - report_jhartmann(): j-hartmann류의 모델을 테스트해서 Report를 생성한다
+    - save_report(): Report를 파일로 저장한다 (폴더, 이름)
+    - run(): 위 과정들을 포함해서 테스트를 실행한다
+        각 테스트용 파일에 대해 모델을 테스트하고 report를 생성해서 저장한다
+    '''
+    
+    
     def __init__(self, model_name, model_label, test_files, data_labels):
         self.model_name = model_name
         self.set_model()
@@ -86,9 +97,8 @@ class Tester:
         trainer = Trainer(model=self.model)
         
         for tf, dl in zip(self.testfiles, self.data_labels):
-            
             # Dataset
-            prediction_dataset = get_dataset(model_name=self.model_name, test_file=tf)
+            prediction_dataset = get_dataset(model_name=self.model_name, datafile=tf)
             predictions = torch.tensor(trainer.predict(prediction_dataset)[0])
         
             # Calculate report 

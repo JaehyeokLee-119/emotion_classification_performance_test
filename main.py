@@ -31,10 +31,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--port', default=1234, type=int)
 
     parser.add_argument('--model_name', default="j-hartmann/emotion-english-distilroberta-base")
-    parser.add_argument('--different_topology', default=False)  # pretrained emotion classification model to test has different emotion topology as DailyDialog
-    parser.add_argument('--topology', default=None)             # The number of emotion classes in the model (if the model has different topology)
     parser.add_argument('--epoch', default=10, type=int)        # When fine-tuning is required
     parser.add_argument('--dropout', default=0.5, type=float)   # When fine-tuning is required
+    
+    parser.add_argument('--fine_tuning', default=False, type=bool)
+    parser.add_argument('--topology', default=False)  # pretrained emotion classification model to test has different emotion topology as DailyDialog
+    parser.add_argument('--n_emotion', default=7)  # pretrained emotion classification model to test has different emotion topology as DailyDialog
     
     parser.add_argument('--test_data', default="data/data_fold/data_0/dailydialog_test.json")
     parser.add_argument('--log_directory', default='logs', type=str)
