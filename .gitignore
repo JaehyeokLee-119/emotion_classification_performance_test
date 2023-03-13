@@ -7,3 +7,6 @@ __?*
 # logged files
 log
 wandb
+
+# Trained model
+model
