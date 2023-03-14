@@ -12,6 +12,7 @@ import numpy as np
 from module.evaluation import metrics_report, metrics_report_for_emo_binary, FocalLoss
 from module.dataset import get_bulk_texts_and_labels
 import datetime
+import logging
 
 emotion_label_policy = {'angry': 0, 'anger': 0,
     'disgust': 1,
@@ -41,14 +42,37 @@ class Finetuner:
         # logging 용
         self.data_label = data_label
         self.model_label = model_label
+        self.class_label = np.array(['angry', 'disgust', 'fear', 'happy', 'sad', 'surprise', 'neutral'])
+        self.log_directory = kwargs.get('log_directory', None)
         
+        self.logger_train = self.set_logger('train')
+        self.logger_test = self.set_logger('test')
+
         # 모델이 자체적으로 생성
+        self.start_time = datetime.datetime.now()
         if self.model_type == 1:
             self.a_model = self.set_a_model(self.model_name)
             self.original_topology = len(self.a_model.config.label2id) # original model's output size
             self.b_model = self.set_b_model_as_added_layer(model_name, original_topology=7, num_classes=7)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         
+    def set_logger(self, logger_name):
+        logger = logging.getLogger(logger_name)
+        logger.setLevel(logging.INFO)    
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+        stream_handler = logging.StreamHandler()
+        stream_handler.setFormatter(formatter)
+        logger.addHandler(stream_handler)
+
+        file_name = f'{logger_name}_{self.model_label}_{self.data_label}.log'
+        if self.log_directory:
+            if not os.path.exists(f'{self.log_directory}'):
+                os.makedirs(f'{self.log_directory}')
+            file_handler = logging.FileHandler(f'{self.log_directory}/{file_name}')
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+    
     def get_dataset_from_file(self, filename):
         # Load the JSON dataset
         device = 'cuda:0'
@@ -108,16 +132,15 @@ class Finetuner:
         dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
         
         i = 0
-        start_time = datetime.datetime.now()
         for epoch in range(self.epoch):
             loss_overall = 0.0 # logging에 쓸 loss 값 저장용
             loss_wandb = 0.0
             '''
             학습하면서 train 데이터에 대해 logging도 수행
             '''
-            predictions, labels_tensor = [list() for _ in range(2)]
+            emotion_pred, emotion_label = [list() for _ in range(2)]
         
-            for inputs, masks, labels in tqdm(dataloader, desc=f"train | Epoch {epoch+1}"):
+            for inputs, masks, labels in tqdm(dataloader, desc=f"Train | Epoch {epoch+1}"):
                 
                 optimizer.zero_grad()
                 model_outputs = self.a_model(inputs, masks)[0]
@@ -130,9 +153,9 @@ class Finetuner:
                 optimizer.step()
                 
                 for pred in outputs:
-                    predictions.append(pred)
+                    emotion_pred.append(pred)
                 for label in labels:
-                    labels_tensor.append(label)
+                    emotion_label.append(label)
                 
                 loss_overall += loss.item() * inputs.size(0)
                 if self.use_wandb:
@@ -142,50 +165,34 @@ class Finetuner:
                         loss_wandb = 0.0
                     i+=1
                     
-            predictions = torch.stack(predictions).cpu()
-            labels_tensor = torch.stack(labels_tensor).cpu()
+            emotion_pred = torch.stack(emotion_pred).cpu()
+            emotion_label = torch.stack(emotion_label).cpu()
             
             epoch_loss = loss_overall / len(dataset)
             print('Epoch [{}/{}], Loss: {:.4f}'.format(epoch+1, self.epoch, epoch_loss))
             
-            label_ = np.array(['angry', 'disgust', 'fear', 'happy', 'sad', 'surprise', 'neutral'])
-            report = metrics_report(predictions, labels_tensor, label_)
-            report += '\n'+metrics_report_for_emo_binary(predictions, labels_tensor)+'\n'
-            # report를 파일에 저장
-            with open(f'log/train_{self.data_label}-{str(start_time)}.txt', 'a') as f:
-                f.write(f'Epoch: {epoch+1} | Test Report About: {self.data_label}\n')
-                f.write(report)
-            print(report)
+            # f.write(f'Epoch: {epoch+1} | Train Report About: {self.data_label}\n')
+            self.reporting(emotion_pred, emotion_label, type_label='train')
             
-            self.test(self.data_label, start_time, epoch, type_label='test')
+            # 현재 epoch에 대해서 모델 테스트
+            # f.write(f'Epoch: {epoch+1} | Test Report About: {self.data_label}\n')
+            self.test(epoch)
             
         # Finish the WandB run
         if self.use_wandb:
             wandb.finish()
             
-        torch.save(self.b_model.state_dict(), f'model/model_j-hartmann-base_fine-tuned_{self.data_label}.pt')
+        torch.save(self.b_model.state_dict(), f'model/{self.model_label}_{self.data_label}.pt')
     
-    def test(self, log_label, start_time, epoch_num, type_label='test'):
+    def test(self, epoch_num):
         device = 'cuda:0'
-        self.batch_size = 5
-        
-        label_ = np.array(['angry', 'disgust', 'fear', 'happy', 'sad', 'surprise', 'neutral'])
-        
-        texts, labels_text = get_bulk_texts_and_labels(self.test_data) # 파일에서 utterance list와 emotion label list를 불러옴
-        labels_tensor = torch.tensor([emotion_label_policy[i] for i in labels_text])      # Emotion text label을 각 감정에 해당하는 숫자 tensor로 바꾼다
-        
-        encoded_texts = self.tokenizer(texts, padding=True, truncation=True, return_tensors='pt') # tokenizer로 발화 문장을 encoding
-
-        input_ids = encoded_texts['input_ids'].to(device)
-        attention_masks = encoded_texts['attention_mask'].to(device)
-        
         dataset = self.get_dataset_from_file(self.test_data)
         dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
         
         with torch.no_grad():
-            predictions, labels_tensor = [list() for _ in range(2)]
+            emotion_pred, emotion_label = [list() for _ in range(2)]
             loss_overall = 0.0 # logging에 쓸 loss 값 저장용
-            for inputs, masks, labels in tqdm(dataloader, desc=f"Test for {epoch_num+1}"):
+            for inputs, masks, labels in tqdm(dataloader, desc=f"Test | Epoch {epoch_num+1}"):
                 model_outputs = self.a_model(inputs, masks)[0]
                 outputs = self.b_model(model_outputs)
                 
@@ -195,33 +202,41 @@ class Finetuner:
                 loss_overall += loss.item() * inputs.size(0)
                 
                 for pred in outputs:
-                    predictions.append(pred)
+                    emotion_pred.append(pred)
                 for label in labels:
-                    labels_tensor.append(label)
+                    emotion_label.append(label)
         
-        predictions = torch.stack(predictions).cpu()            # 펴서 tensor로 만들어줌
-        labels_tensor = torch.stack(labels_tensor).cpu()        # 펴서 tensor로 만들어줌
+        emotion_pred = torch.stack(emotion_pred).cpu()            # 펴서 tensor로 만들어줌
+        emotion_label = torch.stack(emotion_label).cpu()        # 펴서 tensor로 만들어줌
+        self.reporting(emotion_pred, emotion_label, type_label='test')
         
-        report = metrics_report(predictions, labels_tensor, label_)
-        report += '\n'+metrics_report_for_emo_binary(predictions, labels_tensor)+'\n'
-        print(report)
-        
-        # report를 파일에 저장
-        with open(f'log/{type_label}_{log_label}-{str(start_time)}.txt', 'a') as f:
-            f.write(f'Epoch: {epoch_num} | Test Report About: {log_label}\n')
-            f.write(report)
     
     def run(self, **kwargs):
         self.finetune()
     
-    
-    def output_to_report(self, a_model, b_model):
-        pass
+    def reporting(self, emotion_pred, emotion_true, type_label='test'):
+        '''
+        input: emotion_pred, emotion_true, class_label
+        - emotion_pred: torch.tensor (utterance 개수, num_classes)
+        - emotion_true: torch.tensor (utterance 개수)
+        - class_label: np.array (각 index가 가리키는 감정의 label(text)) 
+        '''
+        class_label = self.class_label
+        log_label = self.data_label
+        start_time = self.start_time
+        
+        report = metrics_report(emotion_pred, emotion_true, class_label)
+        report += '\n'+metrics_report_for_emo_binary(emotion_pred, emotion_true)+'\n'
+        print(report)
+        
+        # report를 파일에 저장
+        with open(f'log/{type_label}_{log_label}-{str(start_time)}.txt', 'a') as f:
+            f.write(report)
     
     def set_a_model(self, model_name):
         model = AutoModelForSequenceClassification.from_pretrained(model_name)
         # Freeze the pre-trained model's parameters
-        for param in self.a_model.parameters():
+        for param in model.parameters():
             param.requires_grad = False
         return model
     

@@ -68,10 +68,10 @@ def main():
     
     # model_name = ["j-hartmann/emotion-english-distilroberta-base", "j-hartmann/emotion-english-roberta-large"]
     # model_label = ['j-hartmann distill roberta base', 'j-hartmann roberta large']
-    # model_name = ["j-hartmann/emotion-english-roberta-large"]
-    # model_label = ['j-hartmann roberta large']
-    model_name = ["j-hartmann/emotion-english-distilroberta-base"]
-    model_label = ['j-hartmann distill roberta base']
+    model_name = ["j-hartmann/emotion-english-roberta-large"]
+    model_label = ['j-hartmann_roberta_large']
+    # model_name = ["j-hartmann/emotion-english-distilroberta-base"]
+    # model_label = ['j-hartmann_distill_roberta_base']
     
     if args.mode == 'fine-tuning':
         train_datas = ['data_fold/data_0/dailydialog_train.json', * 
