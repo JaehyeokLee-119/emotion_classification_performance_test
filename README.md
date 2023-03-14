@@ -3,7 +3,7 @@ For comparing Emotion classification performance of different models on DailyDia
 
 [PRG-MoE](https://github.com/jdjin3000/PRG-MoE) referenced
 
-# Dependencies
+## Dependencies
 python 3.10.9<br>
 pytorch 1.13.1<br>
 pytorch-cuda 11.6<br>
@@ -14,8 +14,14 @@ cuda 11.6.1<br>
 transformers 4.26.1<br>
 scikit-learn 1.2.0<br>
 
-# Dataset
+## Dataset
 The dataset used is [RECCON dataset](https://github.com/declare-lab/RECCON).
+
+## Usage
+To fine-tune (or test) pre-trained model, run this command:
+```
+python main.py
+```
 
 ### Commit Conventions (from https://treasurebear.tistory.com/70)
 🎨	`:art:`	코드의 구조/형태 개선	Improve structure / format of the code.<br>
