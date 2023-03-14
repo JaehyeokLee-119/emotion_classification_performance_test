@@ -68,10 +68,10 @@ def main():
     
     # model_name = ["j-hartmann/emotion-english-distilroberta-base", "j-hartmann/emotion-english-roberta-large"]
     # model_label = ['j-hartmann distill roberta base', 'j-hartmann roberta large']
-    model_name = ["j-hartmann/emotion-english-roberta-large"]
-    model_label = ['j-hartmann_roberta_large']
-    # model_name = ["j-hartmann/emotion-english-distilroberta-base"]
-    # model_label = ['j-hartmann_distill_roberta_base']
+    # model_name = ["j-hartmann/emotion-english-roberta-large"]
+    # model_label = ['j-hartmann_roberta_large']
+    model_name = ["j-hartmann/emotion-english-distilroberta-base"]
+    model_label = ['j-hartmann_distill_roberta_base']
     
     if args.mode == 'fine-tuning':
         train_datas = ['data_fold/data_0/dailydialog_train.json', * 
@@ -98,6 +98,7 @@ def main():
         test_datas = ['data_fold/data_0/dailydialog_test.json', * 
                     [f'data_fold/data_{fold_}/data_{fold_}_test.json' for fold_ in range(1, 5)]]
         data_labels = ['-original_dd', *[f'-data_{fold_}_DailyDialog' for fold_ in range(1, 5)]]
+        print("Testing")
         
         for mn, ml in zip(model_name, model_label):
             tester = Tester(mn, ml, test_datas, data_labels)

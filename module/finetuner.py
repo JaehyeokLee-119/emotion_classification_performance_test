@@ -40,6 +40,7 @@ class Finetuner:
             # 3: Automodel에다가 Transformer layer n개 붙인 뒤 Linear layer (hidden_size ➝ n_emotion)
             
         # logging 용
+        self.start_time = datetime.datetime.now()
         self.data_label = data_label
         self.model_label = model_label
         self.class_label = np.array(['angry', 'disgust', 'fear', 'happy', 'sad', 'surprise', 'neutral'])
@@ -49,7 +50,11 @@ class Finetuner:
         self.logger_test = self.set_logger('test')
 
         # 모델이 자체적으로 생성
-        self.start_time = datetime.datetime.now()
+        '''
+        a_model = 원래 모델 (사전학습된 감정분류 모델)
+        b_model = a_model 위에 추가된 모델 (a_model에 Linear layer를 추가한 모델)
+        '''
+        
         if self.model_type == 1:
             self.a_model = self.set_a_model(self.model_name)
             self.original_topology = len(self.a_model.config.label2id) # original model's output size
@@ -65,13 +70,15 @@ class Finetuner:
         stream_handler.setFormatter(formatter)
         logger.addHandler(stream_handler)
 
-        file_name = f'{logger_name}_{self.model_label}_{self.data_label}.log'
+        file_name = f'{logger_name}_{self.model_label}_{self.data_label}-{str(self.start_time)}.log'
         if self.log_directory:
             if not os.path.exists(f'{self.log_directory}'):
                 os.makedirs(f'{self.log_directory}')
             file_handler = logging.FileHandler(f'{self.log_directory}/{file_name}')
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
+        
+        return logger
     
     def get_dataset_from_file(self, filename):
         # Load the JSON dataset
@@ -169,7 +176,7 @@ class Finetuner:
             emotion_label = torch.stack(emotion_label).cpu()
             
             epoch_loss = loss_overall / len(dataset)
-            print('Epoch [{}/{}], Loss: {:.4f}'.format(epoch+1, self.epoch, epoch_loss))
+            self.logger_train.info('\nEpoch [{}/{}], Loss: {:.4f}'.format(epoch+1, self.epoch, epoch_loss))
             
             # f.write(f'Epoch: {epoch+1} | Train Report About: {self.data_label}\n')
             self.reporting(emotion_pred, emotion_label, type_label='train')
@@ -182,7 +189,7 @@ class Finetuner:
         if self.use_wandb:
             wandb.finish()
             
-        torch.save(self.b_model.state_dict(), f'model/{self.model_label}_{self.data_label}.pt')
+        self.save_model()
     
     def test(self, epoch_num):
         device = 'cuda:0'
@@ -198,7 +205,6 @@ class Finetuner:
                 
                 criterion = FocalLoss(gamma=2)
                 loss = criterion(outputs, labels)
-                
                 loss_overall += loss.item() * inputs.size(0)
                 
                 for pred in outputs:
@@ -206,11 +212,11 @@ class Finetuner:
                 for label in labels:
                     emotion_label.append(label)
         
-        emotion_pred = torch.stack(emotion_pred).cpu()            # 펴서 tensor로 만들어줌
+        emotion_pred = torch.stack(emotion_pred).cpu()          # 펴서 tensor로 만들어줌
         emotion_label = torch.stack(emotion_label).cpu()        # 펴서 tensor로 만들어줌
+        self.logger_test.info('\nEpoch [{}/{}]'.format(epoch_num+1, self.epoch))
         self.reporting(emotion_pred, emotion_label, type_label='test')
         
-    
     def run(self, **kwargs):
         self.finetune()
     
@@ -222,15 +228,21 @@ class Finetuner:
         - class_label: np.array (각 index가 가리키는 감정의 label(text)) 
         '''
         class_label = self.class_label
+        model_label = self.model_label
         log_label = self.data_label
         start_time = self.start_time
         
-        report = metrics_report(emotion_pred, emotion_true, class_label)
+        report = '\n'
+        report += metrics_report(emotion_pred, emotion_true, class_label)
         report += '\n'+metrics_report_for_emo_binary(emotion_pred, emotion_true)+'\n'
-        print(report)
+        
+        if type_label == 'train':
+            self.logger_train.info(report)
+        else:
+            self.logger_test.info(report)    # report를 log에 저장
         
         # report를 파일에 저장
-        with open(f'log/{type_label}_{log_label}-{str(start_time)}.txt', 'a') as f:
+        with open(f'log/{model_label}-{type_label}_{log_label}-{str(start_time)}.txt', 'a') as f:
             f.write(report)
     
     def set_a_model(self, model_name):
@@ -241,7 +253,7 @@ class Finetuner:
         return model
     
     def save_model(self):
-        pass
+        torch.save(self.b_model.state_dict(), f'model/{self.model_label}_{self.data_label}.pt')
     
     def set_model_with_replaced_layer(self, model_name, num_classes=7):
         ''' 
