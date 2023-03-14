@@ -77,7 +77,10 @@ class Tester:
     
     def run(self):
         trainer = Trainer(model=self.model)
-        
+        '''
+        Tester의 역할: Classification model을 테스트
+        - Classification model: input으로 text를 받아서, 감정을 분류 점수를 리턴 (7개의 점수)         
+        '''
         for tf, dl in zip(self.testfiles, self.data_labels):
             # Dataset
             prediction_dataset = get_dataset(model_name=self.model_name, datafile=tf)
