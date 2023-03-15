@@ -34,14 +34,14 @@ def parse_args() -> argparse.Namespace:
     
     # Training Environment
     parser.add_argument('--epoch', default=30, type=int)            # When fine-tuning is required
-    parser.add_argument('--dropout', default=0.5, type=float)       # When fine-tuning is required
+    parser.add_argument('--dropout', default=0.2, type=float)       # When fine-tuning is required
     parser.add_argument('--learning_rate', default=5e-5)            # When fine-tuning is required
-    parser.add_argument('--batch_size', default=5, type=int)        # When fine-tuning is required
+    parser.add_argument('--batch_size', default=10, type=int)        # When fine-tuning is required
     
     
     parser.add_argument('--mode', default='fine-tuning') # fine-tuning or test
-    parser.add_argument('--topology', default=False)  # pretrained emotion classification model to test has different emotion topology as DailyDialog
-    parser.add_argument('--n_emotion', default=7)  # pretrained emotion classification model to test has different emotion topology as DailyDialog
+    parser.add_argument('--taxonomy', default=False)  # pretrained emotion classification model to test has different emotion taxonomy as DailyDialog
+    parser.add_argument('--n_emotion', default=7)  # pretrained emotion classification model to test has different emotion taxonomy as DailyDialog
     
     parser.add_argument('--train_data', default="data/data_fold/data_0/dailydialog_test.json")
     parser.add_argument('--test_data', default="data/data_fold/data_0/dailydialog_test.json")
@@ -49,8 +49,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--model_label', default='j-hartmann_emotion-english-distilroberta-base')
     
     # logging 관련
-    parser.add_argument('--log_directory', default='logs', type=str)
-    parser.add_argument('--use_wandb', default=False)
+    parser.add_argument('--log_directory', default='log_test', type=str)
+    parser.add_argument('--use_wandb', default=True)
 
     parser.add_argument('--max_seq_len', help='the max length of each tokenized utterance', default=75, type=int)
     return parser.parse_args()
@@ -70,8 +70,27 @@ def main():
     # model_label = ['j-hartmann distill roberta base', 'j-hartmann roberta large']
     # model_name = ["j-hartmann/emotion-english-roberta-large"]
     # model_label = ['j-hartmann_roberta_large']
-    model_name = ["j-hartmann/emotion-english-distilroberta-base"]
-    model_label = ['j-hartmann_distill_roberta_base']
+    # model_name = ["j-hartmann/emotion-english-distilroberta-base"]
+    # model_label = ['j-hartmann_distill_roberta_base']
+    
+    # model_name = ["michellejieli/emotion_text_classifier", 
+    #               "bhadresh-savani/bert-base-go-emotion",
+    #               "bhadresh-savani/roberta-base-emotion",
+    #               "nateraw/bert-base-uncased-emotion",
+    #               "gokuls/distilroberta-emotion-intent"]
+    # model_label = ["michellejieli-emotion_text_classifier",
+    #                "bhadresh-savani_bert-base-go-emotion",
+    #                "bhadresh-savani_roberta-base-emotion",
+    #                "nateraw_bert-base-uncased-emotion",
+    #                "gokuls_distilroberta-emotion-intent"]
+    
+    model_name = ["bergum/xtremedistil-l6-h384-go-emotion"]
+    model_label = ["bergum_xtremedistil-l6-h384-go-emotion"]
+    
+    # model_name = ["nateraw/bert-base-uncased-emotion",
+    #               "gokuls/distilroberta-emotion-intent"]
+    # model_label = ["nateraw_bert-base-uncased-emotion",
+    #                "gokuls_distilroberta-emotion-intent"]
     
     if args.mode == 'fine-tuning':
         train_datas = ['data_fold/data_0/dailydialog_train.json', * 

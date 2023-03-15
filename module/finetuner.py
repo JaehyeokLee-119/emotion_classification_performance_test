@@ -35,8 +35,8 @@ class Finetuner:
         self.epoch = epoch
         self.learning_rate = learning_rate
         self.model_type = 1
-            # 1: AutoModel에다가 바로 Linear layer (hidden_size ➝ n_emotion)
-            # 2: AutoModelForSequenceClassification에다가 Linear layer (original_taxonomy ➝ n_emotion)
+            # 1: AutoModelForSequenceClassification에다가 Linear layer (original_taxonomy ➝ n_emotion)
+            # 2: AutoModel에다가 바로 Linear layer (hidden_size ➝ n_emotion)
             # 3: Automodel에다가 Transformer layer n개 붙인 뒤 Linear layer (hidden_size ➝ n_emotion)
             
         # logging 용
@@ -55,10 +55,13 @@ class Finetuner:
         b_model = a_model 위에 추가된 모델 (a_model에 Linear layer를 추가한 모델)
         '''
         
+        self.a_model = self.set_a_model(self.model_name, self.model_type)
         if self.model_type == 1:
-            self.a_model = self.set_a_model(self.model_name)
             self.original_taxonomy = len(self.a_model.config.label2id) # original model's output size
-            self.b_model = self.set_b_model_as_added_layer(model_name, self.original_taxonomy, num_classes=7)
+            self.b_model = self.set_b_model_as_added_layer(self.a_model, self.original_taxonomy, num_classes=7)
+        elif self.model_type == 2:
+            self.b_model = self.set_b_model_as_transformer_layer(self.a_model, num_classes=7)
+        
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         
     def set_logger(self, logger_name):
@@ -106,18 +109,24 @@ class Finetuner:
         dataset = TensorDataset(input_ids, attention_masks, labels)
         return dataset
     
-    def set_b_model_as_added_layer(self, model_name, original_taxonomy=7, num_classes=7):
+    def set_a_model(self, model_name, model_type):
+        if model_type == 1:
+            model = AutoModelForSequenceClassification.from_pretrained(model_name)
+        elif model_type == 2:
+            model = AutoModel.from_pretrained(model_name)
+            
+        # Freeze the pre-trained model's parameters
+        for param in model.parameters():
+                param.requires_grad = False
+        return model
+    
+    
+    def set_b_model_as_added_layer(self, model, original_taxonomy=7, num_classes=7):
         '''
         Pre-trained Classificaiton 모델 (LM + classification layer) 위에다 또 linear layer를 얹어서
         추가된 linear layer에 분류를 학습
         이 함수는 추가 linear layer(added_model)를 리턴한다
         '''
-        model = AutoModelForSequenceClassification.from_pretrained(model_name)
-        
-        # Freeze the pre-trained model's parameters
-        for param in model.parameters():
-            param.requires_grad = False
-            
         if original_taxonomy == num_classes:
             # 원래 taxonomy와 같은 경우
             model.classifier = nn.Sequential(
@@ -132,6 +141,15 @@ class Finetuner:
             )
         
         added_model = model.classifier
+        return added_model
+    
+    def set_b_model_as_transformer_layer(self, model_name, num_classes=7):
+        added_model = nn.Sequential(
+                nn.Linear(in_features=original_taxonomy, out_features=num_classes),
+                # nn.ReLU(),
+                # nn.Dropout(p=0.1),
+                # nn.Linear(in_features=num_classes, out_features=num_classes)
+            )
         return added_model
     
     def finetune(self):
@@ -246,13 +264,6 @@ class Finetuner:
             self.logger_train.info(report)
         else:
             self.logger_test.info(report)    # report를 log에 저장
-    
-    def set_a_model(self, model_name):
-        model = AutoModelForSequenceClassification.from_pretrained(model_name)
-        # Freeze the pre-trained model's parameters
-        for param in model.parameters():
-            param.requires_grad = False
-        return model
     
     def save_model(self):
         torch.save(self.b_model.state_dict(), f'model/{self.model_label}_{self.data_label}.pt')
