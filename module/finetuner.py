@@ -36,7 +36,7 @@ class Finetuner:
         self.learning_rate = learning_rate
         self.model_type = 1
             # 1: AutoModel에다가 바로 Linear layer (hidden_size ➝ n_emotion)
-            # 2: AutoModelForSequenceClassification에다가 Linear layer (original_topology ➝ n_emotion)
+            # 2: AutoModelForSequenceClassification에다가 Linear layer (original_taxonomy ➝ n_emotion)
             # 3: Automodel에다가 Transformer layer n개 붙인 뒤 Linear layer (hidden_size ➝ n_emotion)
             
         # logging 용
@@ -57,8 +57,8 @@ class Finetuner:
         
         if self.model_type == 1:
             self.a_model = self.set_a_model(self.model_name)
-            self.original_topology = len(self.a_model.config.label2id) # original model's output size
-            self.b_model = self.set_b_model_as_added_layer(model_name, self.original_topology, num_classes=7)
+            self.original_taxonomy = len(self.a_model.config.label2id) # original model's output size
+            self.b_model = self.set_b_model_as_added_layer(model_name, self.original_taxonomy, num_classes=7)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         
     def set_logger(self, logger_name):
@@ -106,7 +106,7 @@ class Finetuner:
         dataset = TensorDataset(input_ids, attention_masks, labels)
         return dataset
     
-    def set_b_model_as_added_layer(self, model_name, original_topology=7, num_classes=7):
+    def set_b_model_as_added_layer(self, model_name, original_taxonomy=7, num_classes=7):
         '''
         Pre-trained Classificaiton 모델 (LM + classification layer) 위에다 또 linear layer를 얹어서
         추가된 linear layer에 분류를 학습
@@ -118,12 +118,19 @@ class Finetuner:
         for param in model.parameters():
             param.requires_grad = False
             
-        model.classifier = nn.Sequential(
-            nn.Linear(in_features=original_topology, out_features=num_classes),
-            # nn.ReLU(),
-            # nn.Dropout(p=0.1),
-            # nn.Linear(in_features=num_classes, out_features=num_classes)
-        )
+        if original_taxonomy == num_classes:
+            # 원래 taxonomy와 같은 경우
+            model.classifier = nn.Sequential(
+                nn.Linear(in_features=original_taxonomy, out_features=num_classes)
+            )
+        else:
+            model.classifier = nn.Sequential(
+                nn.Linear(in_features=original_taxonomy, out_features=num_classes),
+                # nn.ReLU(),
+                # nn.Dropout(p=0.1),
+                # nn.Linear(in_features=num_classes, out_features=num_classes)
+            )
+        
         added_model = model.classifier
         return added_model
     
@@ -239,10 +246,6 @@ class Finetuner:
             self.logger_train.info(report)
         else:
             self.logger_test.info(report)    # report를 log에 저장
-        
-        # report를 파일에 저장
-        with open(f'log/{model_label}-{type_label}_{log_label}-{str(start_time)}.txt', 'a') as f:
-            f.write(report)
     
     def set_a_model(self, model_name):
         model = AutoModelForSequenceClassification.from_pretrained(model_name)
@@ -267,7 +270,7 @@ class Finetuner:
             param.requires_grad = False
             
         model.classifier = nn.Sequential(
-            nn.Linear(in_features=self.original_topology, out_features=num_classes),
+            nn.Linear(in_features=self.original_taxonomy, out_features=num_classes),
             nn.ReLU(),
             nn.Dropout(p=0.1),
             nn.Linear(in_features=num_classes, out_features=num_classes)
