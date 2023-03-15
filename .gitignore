@@ -5,7 +5,7 @@ test.py
 __?*
 
 # logged files
-log
+log*
 logs
 wandb
 
