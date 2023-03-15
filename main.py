@@ -50,7 +50,7 @@ def parse_args() -> argparse.Namespace:
     
     # logging 관련
     parser.add_argument('--log_directory', default='log_test', type=str)
-    parser.add_argument('--use_wandb', default=True)
+    parser.add_argument('--use_wandb', default=False)
 
     parser.add_argument('--max_seq_len', help='the max length of each tokenized utterance', default=75, type=int)
     return parser.parse_args()

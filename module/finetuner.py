@@ -34,10 +34,6 @@ class Finetuner:
         self.batch_size = batch_size
         self.epoch = epoch
         self.learning_rate = learning_rate
-        self.model_type = 1
-            # 1: AutoModelForSequenceClassification에다가 Linear layer (original_taxonomy ➝ n_emotion)
-            # 2: AutoModel에다가 바로 Linear layer (hidden_size ➝ n_emotion)
-            # 3: Automodel에다가 Transformer layer n개 붙인 뒤 Linear layer (hidden_size ➝ n_emotion)
             
         # logging 용
         self.start_time = datetime.datetime.now()
@@ -55,35 +51,19 @@ class Finetuner:
         b_model = a_model 위에 추가된 모델 (a_model에 Linear layer를 추가한 모델)
         '''
         
+        self.model_type = 2
+            # 1: AutoModelForSequenceClassification에다가 Linear layer (original_taxonomy ➝ n_emotion)
+            # 2: AutoModel에다가 바로 Linear layer (hidden_size ➝ n_emotion)
+            # 3: Automodel에다가 Transformer layer n개 붙인 뒤 Linear layer (hidden_size ➝ n_emotion)
+            
         self.a_model = self.set_a_model(self.model_name, self.model_type)
         if self.model_type == 1:
             self.original_taxonomy = len(self.a_model.config.label2id) # original model's output size
             self.b_model = self.set_b_model_as_added_layer(self.a_model, self.original_taxonomy, num_classes=7)
         elif self.model_type == 2:
-            self.b_model = self.set_b_model_as_transformer_layer(self.a_model, num_classes=7)
+            self.b_model = self.set_b_model_as_added_layer(self.a_model, self.a_model.config.hidden_size, num_classes=7)
         
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        
-    def set_logger(self, logger_name):
-        logger = logging.getLogger(logger_name)
-        logger.setLevel(logging.INFO)    
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-        stream_handler = logging.StreamHandler()
-        stream_handler.setFormatter(formatter)
-        logger.addHandler(stream_handler)
-
-        file_name = f'{logger_name}_{self.model_label}_{self.data_label}-{str(self.start_time)}.log'
-        if self.log_directory:
-            if not os.path.exists(f'{self.log_directory}'):
-                os.makedirs(f'{self.log_directory}')
-            if not os.path.exists(f'{self.log_directory}/{logger_name}_{self.model_label}'):
-                os.makedirs(f'{self.log_directory}/{logger_name}_{self.model_label}')
-            file_handler = logging.FileHandler(f'{self.log_directory}/{logger_name}_{self.model_label}/{file_name}')
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-        
-        return logger
     
     def get_dataset_from_file(self, filename):
         # Load the JSON dataset
@@ -118,8 +98,7 @@ class Finetuner:
         # Freeze the pre-trained model's parameters
         for param in model.parameters():
                 param.requires_grad = False
-        return model
-    
+        return model    
     
     def set_b_model_as_added_layer(self, model, original_taxonomy=7, num_classes=7):
         '''
@@ -129,28 +108,60 @@ class Finetuner:
         '''
         if original_taxonomy == num_classes:
             # 원래 taxonomy와 같은 경우
-            model.classifier = nn.Sequential(
+            added_model = nn.Sequential(
                 nn.Linear(in_features=original_taxonomy, out_features=num_classes)
             )
         else:
-            model.classifier = nn.Sequential(
+            added_model = nn.Sequential(
                 nn.Linear(in_features=original_taxonomy, out_features=num_classes),
                 # nn.ReLU(),
                 # nn.Dropout(p=0.1),
                 # nn.Linear(in_features=num_classes, out_features=num_classes)
             )
-        
-        added_model = model.classifier
         return added_model
     
     def set_b_model_as_transformer_layer(self, model_name, num_classes=7):
         added_model = nn.Sequential(
-                nn.Linear(in_features=original_taxonomy, out_features=num_classes),
+                nn.Linear(in_features=7, out_features=num_classes),
                 # nn.ReLU(),
                 # nn.Dropout(p=0.1),
                 # nn.Linear(in_features=num_classes, out_features=num_classes)
             )
         return added_model
+    
+    def model_calculate(self, inputs, masks):
+        '''
+        model_type에 따라서, a_model -> b_model의 순서로 입력에 대해 각 감정의 score를 계산
+        '''
+        if self.model_type == 1:
+            model_outputs = self.a_model(inputs, masks)[0]  # model_outputs: (batch_size, original_taxonomy)    ex) [6, 28]
+            outputs = self.b_model(model_outputs)           # outputs: (batch_size, num_classes)                ex) [6, 7]
+        elif self.model_type == 2:
+            model_outputs = self.a_model(inputs, masks)[1]  # model_outputs은 pooled_output: (batch_size, hidden_size)
+            outputs = self.b_model(model_outputs)           
+        return outputs
+    
+    def set_logger(self, logger_name):
+        logger = logging.getLogger(logger_name)
+        logger.setLevel(logging.INFO)    
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+        stream_handler = logging.StreamHandler()
+        stream_handler.setFormatter(formatter)
+        logger.addHandler(stream_handler)
+
+        file_name = f'{logger_name}_{self.model_label}_{self.data_label}-{str(self.start_time)}.log'
+        if self.log_directory:
+            if not os.path.exists(f'{self.log_directory}'):
+                os.makedirs(f'{self.log_directory}')
+            if not os.path.exists(f'{self.log_directory}/{logger_name}_{self.model_label}'):
+                os.makedirs(f'{self.log_directory}/{logger_name}_{self.model_label}')
+            file_handler = logging.FileHandler(f'{self.log_directory}/{logger_name}_{self.model_label}/{file_name}')
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+        
+        return logger
+    
     
     def finetune(self):
         # Initialize WandB
@@ -175,10 +186,8 @@ class Finetuner:
             emotion_pred, emotion_label = [list() for _ in range(2)]
         
             for inputs, masks, labels in tqdm(dataloader, desc=f"Train | Epoch {epoch+1}"):
-                
-                optimizer.zero_grad()
-                model_outputs = self.a_model(inputs, masks)[0]
-                outputs = self.b_model(model_outputs)
+                optimizer.zero_grad()  
+                outputs = self.model_calculate(inputs, masks)
                 
                 criterion = FocalLoss(gamma=2)
                 loss = criterion(outputs, labels)
@@ -224,8 +233,7 @@ class Finetuner:
             emotion_pred, emotion_label = [list() for _ in range(2)]
             loss_overall = 0.0 # logging에 쓸 loss 값 저장용
             for inputs, masks, labels in tqdm(dataloader, desc=f"Test | Epoch {epoch_num+1}"):
-                model_outputs = self.a_model(inputs, masks)[0]
-                outputs = self.b_model(model_outputs)
+                outputs = self.model_calculate(inputs, masks)
                 
                 criterion = FocalLoss(gamma=2)
                 loss = criterion(outputs, labels)
