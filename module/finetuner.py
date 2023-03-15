@@ -58,7 +58,7 @@ class Finetuner:
         if self.model_type == 1:
             self.a_model = self.set_a_model(self.model_name)
             self.original_topology = len(self.a_model.config.label2id) # original model's output size
-            self.b_model = self.set_b_model_as_added_layer(model_name, original_topology=7, num_classes=7)
+            self.b_model = self.set_b_model_as_added_layer(model_name, self.original_topology, num_classes=7)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         
     def set_logger(self, logger_name):
@@ -74,7 +74,9 @@ class Finetuner:
         if self.log_directory:
             if not os.path.exists(f'{self.log_directory}'):
                 os.makedirs(f'{self.log_directory}')
-            file_handler = logging.FileHandler(f'{self.log_directory}/{file_name}')
+            if not os.path.exists(f'{self.log_directory}/{logger_name}_{self.model_label}'):
+                os.makedirs(f'{self.log_directory}/{logger_name}_{self.model_label}')
+            file_handler = logging.FileHandler(f'{self.log_directory}/{logger_name}_{self.model_label}/{file_name}')
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
         
@@ -128,7 +130,7 @@ class Finetuner:
     def finetune(self):
         # Initialize WandB
         if self.use_wandb:
-            wandb_project_name = f'j-hartmann-distilroberta-base-fine-tuned_on_{self.data_label}'
+            wandb_project_name = f'{self.model_label}_train_on_{self.data_label}'
             wandb.init(project=wandb_project_name)
         
         self.a_model = self.a_model.cuda()
@@ -178,11 +180,8 @@ class Finetuner:
             epoch_loss = loss_overall / len(dataset)
             self.logger_train.info('\nEpoch [{}/{}], Loss: {:.4f}'.format(epoch+1, self.epoch, epoch_loss))
             
-            # f.write(f'Epoch: {epoch+1} | Train Report About: {self.data_label}\n')
             self.reporting(emotion_pred, emotion_label, type_label='train')
-            
             # 현재 epoch에 대해서 모델 테스트
-            # f.write(f'Epoch: {epoch+1} | Test Report About: {self.data_label}\n')
             self.test(epoch)
             
         # Finish the WandB run
