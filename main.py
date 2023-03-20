@@ -35,11 +35,11 @@ def parse_args() -> argparse.Namespace:
     # Training Environment
     parser.add_argument('--epoch', default=50, type=int)            # When fine-tuning is required
     parser.add_argument('--dropout', default=0.5, type=float)       # When fine-tuning is required
-    parser.add_argument('--learning_rate', default=5e-4)            # When fine-tuning is required
+    parser.add_argument('--learning_rate', default=5e-5)            # When fine-tuning is required
     parser.add_argument('--batch_size', default=10, type=int)        # When fine-tuning is required
     
     parser.add_argument('--mode', default='fine-tuning') # fine-tuning or test
-    parser.add_argument('--model_type', default=3) # fine-tuning additional model의 형태를 결정
+    parser.add_argument('--model_type', default=4) # fine-tuning additional model의 형태를 결정
     parser.add_argument('--fine_tuned_model', default=None)
     
     parser.add_argument('--taxonomy', default=False)  # pretrained emotion classification model to test has different emotion taxonomy as DailyDialog
@@ -51,8 +51,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--model_label', default='j-hartmann_emotion-english-distilroberta-base')
     
     # logging 관련
-    parser.add_argument('--log_directory', default='log_model-type3-1layers_weights(5e-4)', type=str)
-    parser.add_argument('--use_wandb', default=True)
+    parser.add_argument('--log_directory', default='log-testing_model-type4-weights(5e-5)', type=str)
+    parser.add_argument('--use_wandb', default=False)
 
     parser.add_argument('--max_seq_len', help='the max length of each tokenized utterance', default=75, type=int)
     return parser.parse_args()
@@ -70,10 +70,10 @@ def main():
     
     # model_name = ["j-hartmann/emotion-english-distilroberta-base", "j-hartmann/emotion-english-roberta-large"]
     # model_label = ['j-hartmann distill roberta base', 'j-hartmann roberta large']
-    model_name = ["j-hartmann/emotion-english-roberta-large"]
-    model_label = ['j-hartmann_roberta_large']
-    # model_name = ["j-hartmann/emotion-english-distilroberta-base"]
-    # model_label = ['j-hartmann_distill_roberta_base']
+    # model_name = ["j-hartmann/emotion-english-roberta-large"]
+    # model_label = ['j-hartmann_roberta_large']
+    model_name = ["j-hartmann/emotion-english-distilroberta-base"]
+    model_label = ['j-hartmann_distill_roberta_base']
     
     # model_name = ["j-hartmann/emotion-english-roberta-large",
     #               "nateraw/bert-base-uncased-emotion",

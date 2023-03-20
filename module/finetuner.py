@@ -23,25 +23,6 @@ emotion_label_policy = {'angry': 0, 'anger': 0,
     'surprise': 5, 'surprised': 5, 
     'neutral': 6}    
 
-class Full_model(nn.Module):
-    '''
-    Freeze 없이 모든 모델을 학습시키는 형태
-    '''
-    def __init__(self, a_model, b_model):
-        super(Full_model, self).__init__()
-        self.model_1 = a_model
-        self.model_2 = b_model
-        
-        for param in self.model_1.parameters():
-            param.requires_grad = True
-        for param in self.model_2.parameters():
-            param.requires_grad = True
-
-    def forward(self, inputs, masks):
-        input = self.model_1(inputs, masks)[1]
-        output = self.model_2(input)
-        return output
-
 class Model_type3(nn.Module):
     '''
     Model_type3은 기존의 pretrained model의 encoder layer를 1개 추가해서 사용하고, 
@@ -108,7 +89,7 @@ class Finetuner:
             self.b_model = self.set_b_model_as_transformer_layer(self.a_model, input_size=self.a_model.config.hidden_size, output_size=7)
         elif self.model_type == 4:
             self.original_taxonomy = len(self.a_model.config.label2id) # original model's output size
-            self.b_model = self.set_b_model_as_added_layer(self.a_model, input_size=self.original_taxonomy, output_size=7)
+            self.b_model = self.set_b_model_as_full_model(self.model_name, output_size=7)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.wandb_project_name = f'{self.model_label}_type-{self.model_type}_-train_on_{self.data_label}'
     
@@ -151,10 +132,15 @@ class Finetuner:
         # self.model_3 = AutoModel.from_pretrained(model_name).cuda()
         
         # Freeze the pre-trained model's parameters
-        if (model_type != 4):
-            for param in model.parameters():
-                    param.requires_grad = False
+        for param in model.parameters():
+                param.requires_grad = False
         return model    
+    
+    def set_b_model_as_full_model(self, model_name, output_size=7):
+        model = AutoModelForSequenceClassification.from_pretrained(model_name, from_tf=False)
+        for param in model.parameters():
+            param.requires_grad = True
+        return model
     
     def set_b_model_as_added_layer(self, model, input_size=7, output_size=7):
         '''
@@ -209,7 +195,7 @@ class Finetuner:
             model_outputs = self.a_model(inputs, masks)[0]  # [10, 273, 1024]
             outputs = self.b_model(model_outputs)   # b_model: [10, 273, 1024]->[10, 1024]->[10, 7]            ex) [10, 7]
         elif self.model_type == 4:
-            outputs = self.a_model(inputs, masks)[0]     
+            outputs = self.b_model(inputs, masks)[0]
             
         return outputs
     
@@ -245,13 +231,14 @@ class Finetuner:
         self.a_model = self.a_model.cuda()
         self.b_model = self.b_model.cuda()
         
-        if self.model_type == 4:
-            optimizer = optim.Adam(self.a_model.parameters(), lr=self.learning_rate)
-        else:
-            optimizer = optim.Adam(self.b_model.parameters(), lr=self.learning_rate)
+        optimizer = optim.Adam(self.b_model.parameters(), lr=self.learning_rate)
         dataset = self.get_dataset_from_file(self.train_data)
         dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
         
+        scheduler = optim.lr_scheduler.LambdaLR(optimizer=optimizer,
+                                                lr_lambda=lambda epoch: 0.95 ** epoch,
+                                                last_epoch=-1,
+                                                verbose=False)
         i = 0
         for epoch in range(self.epoch):
             loss_overall = 0.0 # logging에 쓸 loss 값 저장용
@@ -293,6 +280,7 @@ class Finetuner:
             self.reporting(emotion_pred, emotion_label, type_label='train')
             # 현재 epoch에 대해서 모델 테스트
             self.test_training(epoch)
+            scheduler.step()
             
         # Finish the WandB run
         if self.use_wandb:
@@ -354,12 +342,13 @@ class Finetuner:
         else:
             self.best_performance_train = max(self.best_performance_train, report_dict['macro avg']['f1-score'])
             
-        print(f'folder, file: {self.log_folder}, {self.log_file}')
-        # file_name = f'logs/{self.model_label}_{type_label}_{self.data_label}-{str(self.start_time)}.log'
-        # with open(file_name, 'a') as f:
-        #     for state in self.b_model.state_dict():
-        #         f.write(state+': '+str(self.b_model.state_dict()[state].view(-1)[:5])+'\n')
-        #     f.write('\n')
+        print(f'folder, file: {self.log_directory}, {self.model_label}_{self.data_label}')
+        file_name = f'logs/{self.model_label}_{type_label}_{self.data_label}-{str(self.start_time)}.log'
+        with open(file_name, 'a') as f:
+            f.write('<STATE>\n')
+            for state in self.b_model.state_dict():
+                f.write(str(self.b_model.state_dict()[state].view(-1)[:5])+': '+state+'\n')
+            f.write('\n')
             
         
         if type_label == 'test':
